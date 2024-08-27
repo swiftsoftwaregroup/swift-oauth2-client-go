@@ -1,4 +1,3 @@
-// Package oauth2client provides a client for making authenticated API calls using OAuth2.
 package oauth2client
 
 // OAuth2Config holds the configuration for OAuth2 authentication.

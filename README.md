@@ -63,15 +63,15 @@ For more detailed examples, please check the `examples` directory in this reposi
 
 For full documentation, please refer to the [GoDoc](https://pkg.go.dev/github.com/swiftsoftwaregroup/swift-oauth2-client-go/oauth2client) page.
 
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
 ### Testing
 
 ```bash
 go test -v ./...
 ```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
