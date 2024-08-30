@@ -2,10 +2,12 @@ package oauth2client
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -164,6 +166,68 @@ func TestAPIClient(t *testing.T) {
 		}
 		if result["message"] != "gzip success" {
 			t.Errorf("Unexpected response: %v", result)
+		}
+	})
+
+	t.Run("CallAPIWithContext-Success", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		response, statusCode, err := client.CallAPIWithContext(ctx, HttpGet, "/api/test", nil, nil)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Errorf("Unexpected status code: %d", statusCode)
+		}
+
+		var result map[string]string
+		if err := json.Unmarshal(response, &result); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+		if result["message"] != "success" {
+			t.Errorf("Unexpected response: %v", result)
+		}
+	})
+
+	t.Run("CallAPIWithContext-Timeout", func(t *testing.T) {
+		// Create a server with artificial delay
+		slowServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(2 * time.Second)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer slowServer.Close()
+
+		slowClient := NewAPIClient(nil, slowServer.URL)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		_, _, err := slowClient.CallAPIWithContext(ctx, HttpGet, "/", nil, nil)
+		if err == nil {
+			t.Fatal("Expected timeout error, got nil")
+		}
+		if !strings.Contains(err.Error(), "context deadline exceeded") {
+			t.Errorf("Expected deadline exceeded error, got: %v", err)
+		}
+	})
+
+	t.Run("DownloadFileWithContext", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		tempFile := t.TempDir() + "/test_download_with_context.txt"
+		err := client.DownloadFileWithContext(ctx, HttpGet, "/api/download", nil, nil, tempFile)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		content, err := os.ReadFile(tempFile)
+		if err != nil {
+			t.Fatalf("Failed to read downloaded file: %v", err)
+		}
+		if string(content) != "test file content" {
+			t.Errorf("Unexpected file content: %s", string(content))
 		}
 	})
 }
