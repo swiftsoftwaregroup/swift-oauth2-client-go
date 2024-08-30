@@ -25,6 +25,7 @@ type APIClient struct {
 //
 // Parameters:
 //   - config: The OAuth2 configuration including token URL, client credentials, and scopes.
+//     If nil, the client works as a thin HTTP client wrapper without authentication.
 //   - baseURL: The base URL of the API you're accessing.
 //
 // Returns:
@@ -38,13 +39,16 @@ type APIClient struct {
 //		ClientSecret: "your_client_secret",
 //		Scopes:       []string{"read", "write"},
 //	}
-//	client := oauth2client.NewAPIClient(config, "https://api.example.com")
-func NewAPIClient(config OAuth2Config, baseURL string) *APIClient {
-	return &APIClient{
-		tokenManager: &tokenManager{config: config},
-		baseURL:      baseURL,
-		httpClient:   &http.Client{},
+//	client := oauth2client.NewAPIClient(&config, "https://api.example.com")
+func NewAPIClient(config *OAuth2Config, baseURL string) *APIClient {
+	client := &APIClient{
+		baseURL:    baseURL,
+		httpClient: &http.Client{},
 	}
+	if config != nil {
+		client.tokenManager = &tokenManager{config: *config}
+	}
+	return client
 }
 
 // CallAPI makes an authenticated API call and returns the response body, status code, and any error.
@@ -77,9 +81,13 @@ func NewAPIClient(config OAuth2Config, baseURL string) *APIClient {
 //	}
 //	fmt.Printf("Status: %d, Response: %s\n", statusCode, string(response))
 func (c *APIClient) CallAPI(method HttpMethod, path string, body interface{}, additionalHeaders map[string]string) ([]byte, int, error) {
-	token, err := c.tokenManager.getValidToken()
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get valid token: %w", err)
+	var token string
+	var err error
+	if c.tokenManager != nil {
+		token, err = c.tokenManager.getValidToken()
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get valid token: %w", err)
+		}
 	}
 
 	var bodyReader io.Reader
@@ -111,7 +119,9 @@ func (c *APIClient) CallAPI(method HttpMethod, path string, body interface{}, ad
 		return nil, 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
@@ -131,7 +141,7 @@ func (c *APIClient) CallAPI(method HttpMethod, path string, body interface{}, ad
 		return nil, 0, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	if resp.StatusCode == http.StatusUnauthorized {
+	if resp.StatusCode == http.StatusUnauthorized && c.tokenManager != nil {
 		// Token might have expired, try refreshing and calling again
 		if err := c.tokenManager.refreshToken(); err != nil {
 			return nil, 0, fmt.Errorf("failed to refresh token: %w", err)
@@ -167,9 +177,13 @@ func (c *APIClient) CallAPI(method HttpMethod, path string, body interface{}, ad
 //	}
 //	fmt.Println("File downloaded successfully")
 func (c *APIClient) DownloadFile(method HttpMethod, path string, body interface{}, additionalHeaders map[string]string, destPath string) error {
-	token, err := c.tokenManager.getValidToken()
-	if err != nil {
-		return fmt.Errorf("failed to get valid token: %w", err)
+	var token string
+	var err error
+	if c.tokenManager != nil {
+		token, err = c.tokenManager.getValidToken()
+		if err != nil {
+			return fmt.Errorf("failed to get valid token: %w", err)
+		}
 	}
 
 	var bodyReader io.Reader
@@ -201,7 +215,9 @@ func (c *APIClient) DownloadFile(method HttpMethod, path string, body interface{
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
@@ -216,7 +232,7 @@ func (c *APIClient) DownloadFile(method HttpMethod, path string, body interface{
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized {
+	if resp.StatusCode == http.StatusUnauthorized && c.tokenManager != nil {
 		if err := c.tokenManager.refreshToken(); err != nil {
 			return fmt.Errorf("failed to refresh token: %w", err)
 		}

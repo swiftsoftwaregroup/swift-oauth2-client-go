@@ -16,7 +16,7 @@ func main() {
 		Scopes:       []string{"api:read", "api:write"},
 	}
 
-	client := oauth2client.NewAPIClient(config, "http://localhost:5001")
+	client := oauth2client.NewAPIClient(&config, "http://localhost:5001")
 
 	// GET request to /api/protected
 	fmt.Println("Calling protected API with GET...")

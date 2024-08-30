@@ -56,7 +56,7 @@ func TestAPIClient(t *testing.T) {
 		ClientSecret: "test_client_secret",
 		Scopes:       []string{"test_scope"},
 	}
-	client := NewAPIClient(config, apiServer.URL)
+	client := NewAPIClient(&config, apiServer.URL)
 
 	// Test CallAPI with GET
 	t.Run("CallAPI GET", func(t *testing.T) {
