@@ -1,6 +1,7 @@
 package oauth2client
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -132,6 +133,36 @@ func TestAPIClient(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 		if result["message"] != "success" {
+			t.Errorf("Unexpected response: %v", result)
+		}
+	})
+
+	// Test CallAPI with GET and gzip encoding
+	t.Run("CallAPI GET with gzip encoding", func(t *testing.T) {
+		gzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Encoding", "gzip")
+			w.Header().Set("Content-Type", "application/json")
+			gz := gzip.NewWriter(w)
+			json.NewEncoder(gz).Encode(map[string]string{"message": "gzip success"})
+			gz.Close()
+		}))
+		defer gzipServer.Close()
+
+		gzipClient := NewAPIClient(nil, gzipServer.URL) // Using it as a thin wrapper without OAuth
+
+		response, statusCode, err := gzipClient.CallAPI(HttpGet, "/", nil, nil)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if statusCode != http.StatusOK {
+			t.Errorf("Unexpected status code: %d", statusCode)
+		}
+
+		var result map[string]string
+		if err := json.Unmarshal(response, &result); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+		if result["message"] != "gzip success" {
 			t.Errorf("Unexpected response: %v", result)
 		}
 	})

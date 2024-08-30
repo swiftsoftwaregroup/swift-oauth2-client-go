@@ -2,6 +2,7 @@ package oauth2client
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -136,7 +137,19 @@ func (c *APIClient) CallAPI(method HttpMethod, path string, body interface{}, ad
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(resp.Body)
+	var reader io.ReadCloser
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer reader.Close()
+	default:
+		reader = resp.Body
+	}
+
+	responseBody, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to read response body: %w", err)
 	}
